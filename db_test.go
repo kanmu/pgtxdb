@@ -87,7 +87,7 @@ func TestShouldPerformParallelActions(t *testing.T) {
 			defer wg.Done()
 			rows, err := d.Query("SELECT username FROM app_user")
 			if err != nil {
-				t.Fatalf("failed to query app_user: %s", err)
+				t.Errorf("failed to query app_user: %s", err)
 			}
 			defer rows.Close()
 
@@ -95,7 +95,7 @@ func TestShouldPerformParallelActions(t *testing.T) {
 			email := fmt.Sprintf("parallel%d@test.com", idx)
 			_, err = d.Exec(`INSERT INTO app_user(username, email) VALUES($1, $2)`, username, email)
 			if err != nil {
-				t.Fatalf("failed to insert an app_user: %s", err)
+				t.Errorf("failed to insert an app_user: %s", err)
 			}
 		}(db, i)
 	}

@@ -1,4 +1,4 @@
-module github.com/achiku/pgtxdb
+module github.com/kanmu/pgtxdb
 
 go 1.20
 
