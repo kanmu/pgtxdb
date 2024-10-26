@@ -6,12 +6,12 @@ import (
 	"os"
 	"testing"
 
-	_ "github.com/lib/pq" // postgres
+	_ "github.com/jackc/pgx/v5/stdlib" // pgx
 )
 
 // TestMain service package setup/teardonw
 func TestMain(m *testing.M) {
-	db, err := sql.Open("postgres", "user=pgtxdbtest dbname=pgtxdbtest sslmode=disable")
+	db, err := sql.Open("pgx", "postgres://pgtxdbtest@localhost:5432/pgtxdbtest?sslmode=disable")
 	if err != nil {
 		log.Fatalf("failed to connect test db: %s", err.Error())
 	}
