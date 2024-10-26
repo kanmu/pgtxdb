@@ -1,8 +1,8 @@
 # pgtxdb
 
-[![test](https://github.com/achiku/pgtxdb/actions/workflows/test.yml/badge.svg)](https://github.com/achiku/pgtxdb/actions/workflows/test.yml)
-[![GitHub license](https://img.shields.io/badge/license-MIT-blue.svg)](https://raw.githubusercontent.com/achiku/pgtxdb/master/LICENSE)
-[![Go Report Card](https://goreportcard.com/badge/github.com/achiku/pgtxdb)](https://goreportcard.com/report/github.com/achiku/pgtxdb)
+[![test](https://github.com/kanmu/pgtxdb/actions/workflows/test.yml/badge.svg)](https://github.com/kanmu/pgtxdb/actions/workflows/test.yml)
+[![GitHub license](https://img.shields.io/badge/license-MIT-blue.svg)](https://raw.githubusercontent.com/kanmu/pgtxdb/master/LICENSE)
+[![Go Report Card](https://goreportcard.com/badge/github.com/kanmu/pgtxdb)](https://goreportcard.com/report/github.com/kanmu/pgtxdb)
 
 ## Description
 
