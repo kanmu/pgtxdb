@@ -178,11 +178,11 @@ func TestSavepointRollbackSequential(t *testing.T) {
 	defer db.Close()
 
 	// rollbackTest has to return error since it trys to insert a duplicate record.
-	// although it returns error, inside it's function the first record is commited.
+	// although it returns error, inside it's function the first record is committed.
 	if err := sequentialRollbackTest(t, db); err == nil {
 		t.Fatal(err)
 	}
-	// Thus, we can retreive a record from db scope
+	// Thus, we can retrieve a record from db scope
 	var count int
 	err = db.QueryRow(`SELECT count(*) FROM app_user WHERE username = 'taro'`).Scan(&count)
 	if err != nil {
@@ -206,7 +206,7 @@ func nestedRollbackTest(t *testing.T, db *sql.DB) error {
 		return err
 	}
 	tx1.Commit()
-	t.Log("tx1 commited")
+	t.Log("tx1 committed")
 
 	tx2, err := db.Begin()
 	if err != nil {
@@ -242,7 +242,7 @@ func createErrorEventWithTx(t *testing.T, prevTx *sql.Tx, db *sql.DB) error {
 		return err
 	}
 	tx.Commit()
-	t.Log("error event tx commited")
+	t.Log("error event tx committed")
 	return nil
 }
 
