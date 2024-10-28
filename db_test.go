@@ -7,12 +7,11 @@ import (
 	"sync"
 	"testing"
 
-	_ "github.com/lib/pq" // postgres
+	_ "github.com/jackc/pgx/v5/stdlib" // pgx
 )
 
 func init() {
-	// we register an sql driver txdb
-	Register("pgtxdb", "postgres", "user=pgtxdbtest dbname=pgtxdbtest sslmode=disable")
+	Register("pgtxdb", "pgx", "postgres://pgtxdbtest@localhost:5432/pgtxdbtest?sslmode=disable")
 }
 
 func TestShouldRunWithinTransaction(t *testing.T) {
