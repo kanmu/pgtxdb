@@ -1,4 +1,4 @@
-package pgtxdb
+package pgtxdb_test
 
 import (
 	"database/sql"
@@ -8,10 +8,11 @@ import (
 	"testing"
 
 	_ "github.com/jackc/pgx/v5/stdlib" // pgx
+	"github.com/kanmu/pgtxdb"
 )
 
 func init() {
-	Register("pgtxdb", "pgx", "postgres://pgtxdbtest@localhost:5432/pgtxdbtest?sslmode=disable")
+	pgtxdb.Register("pgtxdb", "pgx", "postgres://pgtxdbtest@localhost:5432/pgtxdbtest?sslmode=disable")
 }
 
 func TestShouldRunWithinTransaction(t *testing.T) {

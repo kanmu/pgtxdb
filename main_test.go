@@ -1,4 +1,4 @@
-package pgtxdb
+package pgtxdb_test
 
 import (
 	"database/sql"
