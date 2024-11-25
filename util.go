@@ -47,3 +47,12 @@ func Rolledback(db *sql.DB) (bool, error) {
 
 	return rolledback, err
 }
+
+func ResetTxStatus(db *sql.DB) error {
+	err := unwrapConn(db, func(c *conn) {
+		c.committed = false
+		c.rolledback = false
+	})
+
+	return err
+}
