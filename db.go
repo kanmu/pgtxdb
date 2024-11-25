@@ -99,6 +99,8 @@ type conn struct {
 	opened     int
 	drv        *txDriver
 	savepoints []int
+	rolledback bool
+	committed  bool
 }
 
 type txDriver struct {
@@ -159,6 +161,10 @@ func (c *conn) Begin() (driver.Tx, error) {
 }
 
 func (c *conn) Commit() error {
+	if !c.rolledback {
+		c.committed = true
+	}
+
 	return nil
 }
 
@@ -170,6 +176,11 @@ func (c *conn) Rollback() error {
 	if err != nil {
 		return errors.Wrap(err, "failed to rollback to savepoint")
 	}
+
+	if !c.committed {
+		c.rolledback = true
+	}
+
 	return nil
 }
 
