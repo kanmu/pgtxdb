@@ -26,7 +26,7 @@ func unwrapConn(db *sql.DB, f func(driverConn *conn)) error {
 		return nil
 	})
 
-	return nil
+	return err
 }
 
 func Committed(db *sql.DB) (bool, error) {
