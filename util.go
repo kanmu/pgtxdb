@@ -14,7 +14,8 @@ func unwrapConn(db *sql.DB, f func(driverConn *conn)) error {
 	}
 
 	defer sqlConn.Close()
-	err = sqlConn.Raw(func(driverConn any) error {
+
+	return sqlConn.Raw(func(driverConn any) error {
 		rawConn, ok := driverConn.(*conn)
 
 		if !ok {
@@ -25,8 +26,6 @@ func unwrapConn(db *sql.DB, f func(driverConn *conn)) error {
 
 		return nil
 	})
-
-	return err
 }
 
 func Committed(db *sql.DB) (bool, error) {
