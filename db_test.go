@@ -54,7 +54,7 @@ func TestShouldRunWithinTransaction(t *testing.T) {
 func TestShouldRunWithinTransactionForOpenDB(t *testing.T) {
 	t.Parallel()
 	var count int
-	db1 := sql.OpenDB(pgtxdb.NewConnector("pgx", "postgres://pgtxdbtest@localhost:5432/pgtxdbtest?sslmode=disable", "one"))
+	db1 := sql.OpenDB(pgtxdb.NewConnector("one", "pgx", "postgres://pgtxdbtest@localhost:5432/pgtxdbtest?sslmode=disable"))
 	defer db1.Close()
 
 	_, err := db1.Exec(`INSERT INTO app_user(username, email) VALUES('txdb', 'txdb@test.com')`)
@@ -69,7 +69,7 @@ func TestShouldRunWithinTransactionForOpenDB(t *testing.T) {
 		t.Fatalf("expected 1 user to be in database, but got %d", count)
 	}
 
-	db2 := sql.OpenDB(pgtxdb.NewConnector("pgx", "postgres://pgtxdbtest@localhost:5432/pgtxdbtest?sslmode=disable", "two"))
+	db2 := sql.OpenDB(pgtxdb.NewConnector("two", "pgx", "postgres://pgtxdbtest@localhost:5432/pgtxdbtest?sslmode=disable"))
 	defer db2.Close()
 
 	err = db2.QueryRow("SELECT COUNT(id) FROM app_user").Scan(&count)

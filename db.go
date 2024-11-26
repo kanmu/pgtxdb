@@ -123,7 +123,7 @@ func (c *txConnector) Connect(ctx context.Context) (driver.Conn, error) {
 	return c.driver.Open(c.dsn)
 }
 
-func NewConnector(srcDrv, srcDsn, dsn string) driver.Connector {
+func NewConnector(dsn, srcDrv, srcDsn string) driver.Connector {
 	return &txConnector{
 		driver: &txDriver{
 			dsn:   srcDsn,
