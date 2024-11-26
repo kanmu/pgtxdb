@@ -99,12 +99,14 @@ type conn struct {
 	opened     int
 	drv        *txDriver
 	savepoints []int
+	log        io.Writer
 }
 
 type txDriver struct {
 	sync.Mutex
 	db    *sql.DB
 	conns map[string]*conn
+	log   io.Writer
 
 	drv string
 	dsn string
@@ -123,12 +125,17 @@ func (c *txConnector) Connect(ctx context.Context) (driver.Conn, error) {
 	return c.driver.Open(c.dsn)
 }
 
-func NewConnector(dsn, srcDrv, srcDsn string) driver.Connector {
+func NewConnector(dsn, srcDrv, srcDsn string, log io.Writer) driver.Connector {
+	if log == nil {
+		log = io.Discard
+	}
+
 	return &txConnector{
 		driver: &txDriver{
 			dsn:   srcDsn,
 			drv:   srcDrv,
 			conns: make(map[string]*conn),
+			log:   log,
 		},
 		dsn: dsn,
 	}
@@ -148,7 +155,8 @@ func (d *txDriver) Open(dsn string) (driver.Conn, error) {
 	}
 	c, ok := d.conns[dsn]
 	if !ok {
-		c = &conn{dsn: dsn, drv: d, savepoints: []int{0}}
+		c = &conn{dsn: dsn, drv: d, savepoints: []int{0}, log: d.log}
+		fmt.Fprintf(c.log, "%s: Open\n", c.dsn)
 		c.tx, err = d.db.Begin()
 		d.conns[dsn] = c
 	}
@@ -168,6 +176,7 @@ func (c *conn) Close() (err error) {
 		c.tx = nil
 		delete(c.drv.conns, c.dsn)
 	}
+	fmt.Fprintf(c.log, "%s: Close\n", c.dsn)
 	return
 }
 
@@ -179,10 +188,12 @@ func (c *conn) Begin() (driver.Tx, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create savepoint")
 	}
+	fmt.Fprintf(c.log, "%s: Begin\n", c.dsn)
 	return c, nil
 }
 
 func (c *conn) Commit() error {
+	fmt.Fprintf(c.log, "%s: Commit\n", c.dsn)
 	return nil
 }
 
@@ -194,6 +205,7 @@ func (c *conn) Rollback() error {
 	if err != nil {
 		return errors.Wrap(err, "failed to rollback to savepoint")
 	}
+	fmt.Fprintf(c.log, "%s: Rollback\n", c.dsn)
 	return nil
 }
 
@@ -205,13 +217,14 @@ func (c *conn) Prepare(query string) (driver.Stmt, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &stmt{st: st}, nil
+	return &stmt{st: st, dsn: c.dsn, log: c.log}, nil
 }
 
 func (c *conn) Exec(query string, args []driver.Value) (driver.Result, error) {
 	c.Lock()
 	defer c.Unlock()
 
+	fmt.Fprintf(c.log, "%s: Exec %s\n", c.dsn, query)
 	return c.tx.Exec(query, mapArgs(args)...)
 }
 
@@ -238,10 +251,13 @@ func (c *conn) Query(query string, args []driver.Value) (driver.Rows, error) {
 }
 
 type stmt struct {
-	st *sql.Stmt
+	st  *sql.Stmt
+	dsn string
+	log io.Writer
 }
 
 func (s *stmt) Exec(args []driver.Value) (driver.Result, error) {
+	fmt.Fprintf(s.log, "%s: Exec prepared statement\n", s.dsn)
 	return s.st.Exec(mapArgs(args)...)
 }
 
@@ -380,6 +396,7 @@ func (c *conn) ExecContext(ctx context.Context, query string, args []driver.Name
 	c.Lock()
 	defer c.Unlock()
 
+	fmt.Fprintf(c.log, "%s: Exec %s\n", c.dsn, query)
 	return c.tx.ExecContext(ctx, query, mapNamedArgs(args)...)
 }
 
@@ -392,6 +409,7 @@ func (c *conn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver.Tx, e
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create savepoint")
 	}
+	fmt.Fprintf(c.log, "%s: BeginTx\n", c.dsn)
 	return c, nil
 }
 
@@ -404,7 +422,7 @@ func (c *conn) PrepareContext(ctx context.Context, query string) (driver.Stmt, e
 	if err != nil {
 		return nil, err
 	}
-	return &stmt{st: st}, nil
+	return &stmt{st: st, dsn: c.dsn, log: c.log}, nil
 }
 
 // Implement the "Pinger" interface
@@ -414,6 +432,7 @@ func (c *conn) Ping(ctx context.Context) error {
 
 // Implement the "StmtExecContext" interface
 func (s *stmt) ExecContext(ctx context.Context, args []driver.NamedValue) (driver.Result, error) {
+	fmt.Fprintf(s.log, "%s: ExecContext prepared statement\n", s.dsn)
 	return s.st.ExecContext(ctx, mapNamedArgs(args)...)
 }
 
