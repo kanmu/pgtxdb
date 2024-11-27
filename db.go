@@ -110,6 +110,30 @@ type txDriver struct {
 	dsn string
 }
 
+type txConnector struct {
+	driver *txDriver
+	dsn    string
+}
+
+func (c *txConnector) Driver() driver.Driver {
+	return c.driver
+}
+
+func (c *txConnector) Connect(ctx context.Context) (driver.Conn, error) {
+	return c.driver.Open(c.dsn)
+}
+
+func NewConnector(dsn, srcDrv, srcDsn string) driver.Connector {
+	return &txConnector{
+		driver: &txDriver{
+			dsn:   srcDsn,
+			drv:   srcDrv,
+			conns: make(map[string]*conn),
+		},
+		dsn: dsn,
+	}
+}
+
 func (d *txDriver) Open(dsn string) (driver.Conn, error) {
 	d.Lock()
 	defer d.Unlock()
