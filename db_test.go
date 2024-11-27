@@ -71,8 +71,8 @@ func TestShouldRunWithinTransactionForOpenDB(t *testing.T) {
 		t.Fatalf("expected 1 user to be in database, but got %d", count)
 	}
 
-	expectedDb1Log := `one: Open
-one: Exec INSERT INTO app_user(username, email) VALUES('txdb', 'txdb@test.com')
+	expectedDb1Log := `one: open
+one: exec INSERT INTO app_user(username, email) VALUES('txdb', 'txdb@test.com')
 `
 
 	if db1Log.String() != expectedDb1Log {
@@ -91,7 +91,7 @@ one: Exec INSERT INTO app_user(username, email) VALUES('txdb', 'txdb@test.com')
 		t.Errorf("expected 0 user to be in database, but got %d", count)
 	}
 
-	expectedDb2Log := `two: Open
+	expectedDb2Log := `two: open
 `
 
 	if db2Log.String() != expectedDb2Log {
@@ -263,13 +263,13 @@ func TestSavepointRollbackSequentialForOpenDB(t *testing.T) {
 		t.Errorf("expected 1 user with username taro, but got %d", count)
 	}
 
-	expectedDbLog := `one: Open
-one: BeginTx
-one: Exec INSERT INTO app_user(username, email) VALUES ('taro', 'taro@gmail.com')
-one: Commit
-one: BeginTx
-one: Exec INSERT INTO app_user(username, email) VALUES ('taro', 'taro@gmail.com')
-one: Rollback
+	expectedDbLog := `one: open
+one: begin
+one: exec INSERT INTO app_user(username, email) VALUES ('taro', 'taro@gmail.com')
+one: commit
+one: begin
+one: exec INSERT INTO app_user(username, email) VALUES ('taro', 'taro@gmail.com')
+one: rollback
 `
 
 	if dbLog.String() != expectedDbLog {
