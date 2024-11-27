@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"runtime"
+	"strings"
 	"sync"
 	"testing"
 
@@ -54,7 +55,8 @@ func TestShouldRunWithinTransaction(t *testing.T) {
 func TestShouldRunWithinTransactionForOpenDB(t *testing.T) {
 	t.Parallel()
 	var count int
-	db1 := sql.OpenDB(pgtxdb.NewConnector("one", "pgx", "postgres://pgtxdbtest@localhost:5432/pgtxdbtest?sslmode=disable"))
+	var db1Log strings.Builder
+	db1 := sql.OpenDB(pgtxdb.NewConnector("one", "pgx", "postgres://pgtxdbtest@localhost:5432/pgtxdbtest?sslmode=disable", &db1Log))
 	defer db1.Close()
 
 	_, err := db1.Exec(`INSERT INTO app_user(username, email) VALUES('txdb', 'txdb@test.com')`)
@@ -69,7 +71,16 @@ func TestShouldRunWithinTransactionForOpenDB(t *testing.T) {
 		t.Fatalf("expected 1 user to be in database, but got %d", count)
 	}
 
-	db2 := sql.OpenDB(pgtxdb.NewConnector("two", "pgx", "postgres://pgtxdbtest@localhost:5432/pgtxdbtest?sslmode=disable"))
+	expectedDb1Log := `one: open
+one: exec INSERT INTO app_user(username, email) VALUES('txdb', 'txdb@test.com')
+`
+
+	if db1Log.String() != expectedDb1Log {
+		t.Errorf("unexpected db1 log: %s", db1Log.String())
+	}
+
+	var db2Log strings.Builder
+	db2 := sql.OpenDB(pgtxdb.NewConnector("two", "pgx", "postgres://pgtxdbtest@localhost:5432/pgtxdbtest?sslmode=disable", &db2Log))
 	defer db2.Close()
 
 	err = db2.QueryRow("SELECT COUNT(id) FROM app_user").Scan(&count)
@@ -77,7 +88,14 @@ func TestShouldRunWithinTransactionForOpenDB(t *testing.T) {
 		t.Fatalf("failed to count app_user: %s", err)
 	}
 	if count != 0 {
-		t.Fatalf("expected 0 user to be in database, but got %d", count)
+		t.Errorf("expected 0 user to be in database, but got %d", count)
+	}
+
+	expectedDb2Log := `two: open
+`
+
+	if db2Log.String() != expectedDb2Log {
+		t.Fatalf("unexpected db2 log: %s", db2Log.String())
 	}
 }
 
@@ -221,6 +239,41 @@ func TestSavepointRollbackSequential(t *testing.T) {
 	}
 	if count != 1 {
 		t.Errorf("expected 1 user with username taro, but got %d", count)
+	}
+}
+
+func TestSavepointRollbackSequentialForOpenDB(t *testing.T) {
+	t.Parallel()
+	var dbLog strings.Builder
+	db := sql.OpenDB(pgtxdb.NewConnector("one", "pgx", "postgres://pgtxdbtest@localhost:5432/pgtxdbtest?sslmode=disable", &dbLog))
+	defer db.Close()
+
+	// rollbackTest has to return error since it trys to insert a duplicate record.
+	// although it returns error, inside it's function the first record is committed.
+	if err := sequentialRollbackTest(t, db); err == nil {
+		t.Fatal(err)
+	}
+	// Thus, we can retrieve a record from db scope
+	var count int
+	err := db.QueryRow(`SELECT count(*) FROM app_user WHERE username = 'taro'`).Scan(&count)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Errorf("expected 1 user with username taro, but got %d", count)
+	}
+
+	expectedDbLog := `one: open
+one: begin
+one: exec INSERT INTO app_user(username, email) VALUES ('taro', 'taro@gmail.com')
+one: commit
+one: begin
+one: exec INSERT INTO app_user(username, email) VALUES ('taro', 'taro@gmail.com')
+one: rollback
+`
+
+	if dbLog.String() != expectedDbLog {
+		t.Fatalf("unexpected db log: %s", dbLog.String())
 	}
 }
 
