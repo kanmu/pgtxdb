@@ -87,6 +87,7 @@ func Register(name, drv, dsn string) {
 		dsn:   dsn,
 		drv:   drv,
 		conns: make(map[string]*conn),
+		log:   io.Discard,
 	})
 }
 
