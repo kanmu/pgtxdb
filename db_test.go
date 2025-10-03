@@ -14,6 +14,7 @@ import (
 
 func init() {
 	pgtxdb.Register("pgtxdb", "pgx", "postgres://pgtxdbtest@localhost:5432/pgtxdbtest?sslmode=disable")
+	pgtxdb.RegisterReadOnly("pgtxdb-ro", "pgx", "postgres://pgtxdbtest@localhost:5432/pgtxdbtest?sslmode=disable")
 }
 
 func TestShouldRunWithinTransaction(t *testing.T) {
@@ -188,6 +189,33 @@ func TestShouldHandlePrepare(t *testing.T) {
 	_, err = stmt2.Exec("mark", "mark.spencer@gmail.com")
 	if err != nil {
 		t.Fatalf("should have inserted user - %s", err)
+	}
+}
+
+func TestShouldRunAsReadOnly(t *testing.T) {
+	t.Parallel()
+	var count int
+	db1, err := sql.Open("pgtxdb-ro", "one")
+	if err != nil {
+		t.Fatalf("failed to open a postgres connection, have you run 'make test'? err: %s", err)
+	}
+	defer db1.Close()
+
+	err = db1.QueryRow("SELECT 3").Scan(&count)
+	if err != nil {
+		t.Fatalf("failed to count users: %s", err)
+	}
+	if count != 3 {
+		t.Fatalf("expected 3 user to be in database, but got %d", count)
+	}
+
+	_, err = db1.Exec(`INSERT INTO app_user(username, email) VALUES('txdb', 'txdb@test.com')`)
+	if err == nil {
+		t.Fatalf("INSERT must fail in read-only mode")
+	}
+
+	if !strings.Contains(err.Error(), "cannot execute INSERT in a read-only transaction") {
+		t.Fatalf("unexpected error message: %s", err)
 	}
 }
 
