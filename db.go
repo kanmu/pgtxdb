@@ -61,6 +61,8 @@ import (
 	"io"
 	"sync"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pkg/errors"
 )
 
@@ -83,11 +85,20 @@ import (
 // the dsn string when opening the sql.DB. The transaction will be
 // isolated within that dsn
 func Register(name, drv, dsn string) {
+	register0(name, drv, dsn, false)
+}
+
+func RegisterReadOnly(name, drv, dsn string) {
+	register0(name, drv, dsn, true)
+}
+
+func register0(name, drv, dsn string, readOnly bool) {
 	sql.Register(name, &txDriver{
-		dsn:   dsn,
-		drv:   drv,
-		conns: make(map[string]*conn),
-		log:   io.Discard,
+		dsn:      dsn,
+		drv:      drv,
+		conns:    make(map[string]*conn),
+		log:      io.Discard,
+		readOnly: readOnly,
 	})
 }
 
@@ -109,8 +120,9 @@ type txDriver struct {
 	conns map[string]*conn
 	log   io.Writer
 
-	drv string
-	dsn string
+	drv      string
+	dsn      string
+	readOnly bool
 }
 
 type txConnector struct {
@@ -148,11 +160,28 @@ func (d *txDriver) Open(dsn string) (driver.Conn, error) {
 	// first open a real database connection
 	var err error
 	if d.db == nil {
-		db, err := sql.Open(d.drv, d.dsn)
-		if err != nil {
-			return nil, err
+		if d.drv == "pgx" {
+			cc, err := pgx.ParseConfig(d.dsn)
+			if err != nil {
+				return nil, err
+			}
+			opts := []stdlib.OptionOpenDB{}
+			if d.readOnly {
+				opts = append(opts, stdlib.OptionAfterConnect(func(ctx context.Context, c *pgx.Conn) error {
+					_, err := c.Exec(ctx, "SET default_transaction_read_only = true")
+					return err
+				}))
+			}
+			connector := stdlib.GetConnector(*cc, opts...)
+			d.db = sql.OpenDB(connector)
+		} else {
+			var db *sql.DB
+			db, err = sql.Open(d.drv, d.dsn)
+			if err != nil {
+				return nil, err
+			}
+			d.db = db
 		}
-		d.db = db
 	}
 	c, ok := d.conns[dsn]
 	if !ok {
