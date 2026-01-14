@@ -460,6 +460,13 @@ func (c *conn) Ping(ctx context.Context) error {
 	return c.drv.db.PingContext(ctx)
 }
 
+// Implement the "NamedValueChecker" interface
+// Underlying pgx supports sql.Scanner and driver.Valuer interfaces natively. So everything can be passed through directly.
+// see https://github.com/jackc/pgx/blob/98e7e9f2975b2a904d3eee25c453297dcb58c7cc/stdlib/sql.go#L549
+func (c *conn) CheckNamedValue(*driver.NamedValue) error {
+	return nil
+}
+
 // Implement the "StmtExecContext" interface
 func (s *stmt) ExecContext(ctx context.Context, args []driver.NamedValue) (driver.Result, error) {
 	fmt.Fprintf(s.log, "%s: exec prepared statement\n", s.dsn)
