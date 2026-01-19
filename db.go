@@ -60,6 +60,7 @@ import (
 	"fmt"
 	"io"
 	"sync"
+	"sync/atomic"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/stdlib"
@@ -106,12 +107,14 @@ func register0(name, drv, dsn string, readOnly bool) {
 // when the Close is called, transaction is rolled back
 type conn struct {
 	sync.Mutex
-	tx         *sql.Tx
-	dsn        string
-	opened     int
-	drv        *txDriver
-	savepoints []int
-	log        io.Writer
+	tx              *sql.Tx
+	dsn             string
+	opened          int
+	drv             *txDriver
+	savepoints      []int
+	log             io.Writer
+	readOnly        bool
+	readOnlyApplied atomic.Bool
 }
 
 type txDriver struct {
@@ -166,12 +169,6 @@ func (d *txDriver) Open(dsn string) (driver.Conn, error) {
 				return nil, err
 			}
 			opts := []stdlib.OptionOpenDB{}
-			if d.readOnly {
-				opts = append(opts, stdlib.OptionAfterConnect(func(ctx context.Context, c *pgx.Conn) error {
-					_, err := c.Exec(ctx, "SET default_transaction_read_only = true")
-					return err
-				}))
-			}
 			connector := stdlib.GetConnector(*cc, opts...)
 			d.db = sql.OpenDB(connector)
 		} else {
@@ -185,13 +182,24 @@ func (d *txDriver) Open(dsn string) (driver.Conn, error) {
 	}
 	c, ok := d.conns[dsn]
 	if !ok {
-		c = &conn{dsn: dsn, drv: d, savepoints: []int{0}, log: d.log}
+		c = &conn{dsn: dsn, drv: d, savepoints: []int{0}, log: d.log, readOnly: d.readOnly}
 		fmt.Fprintf(c.log, "%s: open\n", c.dsn)
 		c.tx, err = d.db.Begin()
 		d.conns[dsn] = c
 	}
 	c.opened++
 	return c, err
+}
+
+func (c *conn) setReadOnlyIfNeed() error {
+	if !c.readOnly || c.readOnlyApplied.Load() {
+		return nil
+	}
+	if _, err := c.tx.Exec("SET transaction_read_only = true"); err != nil {
+		return fmt.Errorf("failed to set transaction_read_only: %w", err)
+	}
+	c.readOnlyApplied.Store(true)
+	return nil
 }
 
 func (c *conn) Close() (err error) {
@@ -255,6 +263,9 @@ func (c *conn) Exec(query string, args []driver.Value) (driver.Result, error) {
 	defer c.Unlock()
 
 	fmt.Fprintf(c.log, "%s: exec %s\n", c.dsn, query)
+	if err := c.setReadOnlyIfNeed(); err != nil {
+		return nil, err
+	}
 	return c.tx.Exec(query, mapArgs(args)...)
 }
 
@@ -269,6 +280,10 @@ func mapArgs(args []driver.Value) (res []interface{}) {
 func (c *conn) Query(query string, args []driver.Value) (driver.Rows, error) {
 	c.Lock()
 	defer c.Unlock()
+
+	if err := c.setReadOnlyIfNeed(); err != nil {
+		return nil, err
+	}
 
 	// query rows
 	rs, err := c.tx.Query(query, mapArgs(args)...)
@@ -412,6 +427,10 @@ func (c *conn) QueryContext(ctx context.Context, query string, args []driver.Nam
 	c.Lock()
 	defer c.Unlock()
 
+	if err := c.setReadOnlyIfNeed(); err != nil {
+		return nil, err
+	}
+
 	rs, err := c.tx.QueryContext(ctx, query, mapNamedArgs(args)...)
 	if err != nil {
 		return nil, err
@@ -427,6 +446,9 @@ func (c *conn) ExecContext(ctx context.Context, query string, args []driver.Name
 	defer c.Unlock()
 
 	fmt.Fprintf(c.log, "%s: exec %s\n", c.dsn, query)
+	if err := c.setReadOnlyIfNeed(); err != nil {
+		return nil, err
+	}
 	return c.tx.ExecContext(ctx, query, mapNamedArgs(args)...)
 }
 
