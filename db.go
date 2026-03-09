@@ -59,6 +59,7 @@ import (
 	"database/sql/driver"
 	"fmt"
 	"io"
+	"net/netip"
 	"sync"
 
 	"github.com/jackc/pgx/v5"
@@ -308,9 +309,10 @@ func (s *stmt) Query(args []driver.Value) (driver.Rows, error) {
 }
 
 type rows struct {
-	rows [][]driver.Value
-	pos  int
-	cols []string
+	rows     [][]driver.Value
+	pos      int
+	cols     []string
+	colTypes []string
 }
 
 func (r *rows) Columns() (cols []string) {
@@ -324,7 +326,22 @@ func (r *rows) Next(dest []driver.Value) error {
 	}
 
 	for i, val := range r.rows[r.pos-1] {
-		dest[i] = *(val.(*interface{}))
+		v := *(val.(*interface{}))
+		if s, ok := v.(string); ok && i < len(r.colTypes) {
+			switch r.colTypes[i] {
+			case "INET":
+				if prefix, err := netip.ParsePrefix(s); err == nil {
+					v = prefix
+				} else if addr, err := netip.ParseAddr(s); err == nil {
+					v = netip.PrefixFrom(addr, addr.BitLen())
+				}
+			case "CIDR":
+				if prefix, err := netip.ParsePrefix(s); err == nil {
+					v = prefix
+				}
+			}
+		}
+		dest[i] = v
 	}
 
 	return nil
@@ -339,6 +356,14 @@ func (r *rows) read(rs *sql.Rows) error {
 	r.cols, err = rs.Columns()
 	if err != nil {
 		return err
+	}
+	cts, err := rs.ColumnTypes()
+	if err != nil {
+		return err
+	}
+	r.colTypes = make([]string, len(cts))
+	for i, ct := range cts {
+		r.colTypes[i] = ct.DatabaseTypeName()
 	}
 	for rs.Next() {
 		values := make([]interface{}, len(r.cols))

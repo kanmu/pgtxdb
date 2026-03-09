@@ -3,6 +3,7 @@ package pgtxdb_test
 import (
 	"database/sql"
 	"fmt"
+	"net/netip"
 	"runtime"
 	"strings"
 	"sync"
@@ -385,5 +386,59 @@ func TestSavepointRollbackNested(t *testing.T) {
 	}
 	if errCount != 1 {
 		t.Errorf("expected 1 error event, but got %d", errCount)
+	}
+}
+
+func TestInetScan(t *testing.T) {
+	t.Parallel()
+	db, err := sql.Open("pgtxdb", "test-inet")
+	if err != nil {
+		t.Fatalf("failed to open a postgres connection, have you run 'make test'? err: %s", err)
+	}
+	defer db.Close()
+
+	// Test INET with host address (no prefix length — pgx returns "192.168.1.1/32")
+	_, err = db.Exec(`INSERT INTO test_inet (ip) VALUES ($1)`, netip.MustParsePrefix("192.168.1.1/32"))
+	if err != nil {
+		t.Fatalf("failed to insert inet value: %s", err)
+	}
+
+	var ip netip.Prefix
+	err = db.QueryRow(`SELECT ip FROM test_inet WHERE id = 1`).Scan(&ip)
+	if err != nil {
+		t.Fatalf("failed to scan inet value: %s", err)
+	}
+	if ip != netip.MustParsePrefix("192.168.1.1/32") {
+		t.Errorf("expected 192.168.1.1/32, got %s", ip)
+	}
+
+	// Test CIDR
+	_, err = db.Exec(`UPDATE test_inet SET network = $1 WHERE id = 1`, netip.MustParsePrefix("10.0.0.0/8"))
+	if err != nil {
+		t.Fatalf("failed to update cidr value: %s", err)
+	}
+
+	var network netip.Prefix
+	err = db.QueryRow(`SELECT network FROM test_inet WHERE id = 1`).Scan(&network)
+	if err != nil {
+		t.Fatalf("failed to scan cidr value: %s", err)
+	}
+	if network != netip.MustParsePrefix("10.0.0.0/8") {
+		t.Errorf("expected 10.0.0.0/8, got %s", network)
+	}
+
+	// Test IPv6
+	_, err = db.Exec(`INSERT INTO test_inet (ip) VALUES ($1)`, netip.MustParsePrefix("::1/128"))
+	if err != nil {
+		t.Fatalf("failed to insert ipv6 inet value: %s", err)
+	}
+
+	var ip6 netip.Prefix
+	err = db.QueryRow(`SELECT ip FROM test_inet WHERE id = 2`).Scan(&ip6)
+	if err != nil {
+		t.Fatalf("failed to scan ipv6 inet value: %s", err)
+	}
+	if ip6 != netip.MustParsePrefix("::1/128") {
+		t.Errorf("expected ::1/128, got %s", ip6)
 	}
 }
