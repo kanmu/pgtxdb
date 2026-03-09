@@ -28,6 +28,11 @@ func TestMain(m *testing.M) {
 	  message TEXT NOT NULL,
 	  UNIQUE (id)
 	);
+	CREATE TABLE IF NOT EXISTS test_inet (
+	  id BIGSERIAL PRIMARY KEY,
+	  ip INET NOT NULL,
+	  network CIDR
+	);
 	`)
 	if err != nil {
 		log.Fatalf("failed to create test table: %s", err.Error())
@@ -36,6 +41,7 @@ func TestMain(m *testing.M) {
 	_, err = db.Exec(`
 	DROP TABLE IF EXISTS app_user;
 	DROP TABLE IF EXISTS error_event;
+	DROP TABLE IF EXISTS test_inet;
 	`)
 	if err != nil {
 		log.Fatalf("failed to create test table: %s", err.Error())
